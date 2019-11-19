@@ -1,0 +1,2 @@
+To get all currently unplanted sites ready  for snatching:
+<highlight><tab><symbol>snatch<end>
