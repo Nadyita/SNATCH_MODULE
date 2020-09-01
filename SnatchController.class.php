@@ -1,6 +1,16 @@
-<?php
+<?php declare(strict_types=1);
 
-namespace Budabot\User\Modules;
+namespace Nadybot\User\Modules;
+
+use Nadybot\Core\CommandReply;
+use Nadybot\Core\DB;
+use Nadybot\Core\DBRow;
+use Nadybot\Core\Http;
+use Nadybot\Core\HttpResponse;
+use Nadybot\Core\Nadybot;
+use Nadybot\Core\Text;
+use Nadybot\Modules\HELPBOT_MODULE\PlayfieldController;
+use Nadybot\Modules\TOWER_MODULE\TowerController;
 
 /**
  * A command to list all currently unplanted tower fields
@@ -21,89 +31,55 @@ class SnatchController {
 	/**
 	 * Name of the module.
 	 * Set automatically by module loader.
-	 * @var string $moduleName
 	 */
-	public $moduleName;
+	public string $moduleName;
 
-	/**
-	 * @var \Budabot\Core\Budabot $chatBot
-	 * @Inject
-	 */
-	public $chatBot;
+	/** @Inject */
+	public Nadybot $chatBot;
 
-	/**
-	 * @var \Budabot\Core\Text $text
-	 * @Inject
-	 */
-	public $text;
+	/** @Inject */
+	public Text $text;
 
-	/**
-	 * @var \Budabot\Core\DB $db
-	 * @Inject
-	 */
-	public $db;
+	/** @Inject */
+	public DB $db;
 
-	/**
-	 * @var \Budabot\Core\Http $http
-	 * @Inject
-	 */
-	public $http;
+	/** @Inject */
+	public Http $http;
 
-	/**
-	 * @var \Budabot\User\Modules\PlayfieldController $playfieldController
-	 * @Inject
-	 */
-	public $playfieldController;
+	/** @Inject */
+	public PlayfieldController $playfieldController;
 
-	/**
-	 * @var \Budabot\User\Modules\TowerController $towerController
-	 * @Inject
-	 */
-	public $towerController;
+	/** @Inject */
+	public TowerController $towerController;
 
 	/**
 	 * An array of all unclaimed fields since the last check in format [ ["WW", 1], ["AE", 3] ]
-	 *
-	 * @var array|null $lastUnclaimedFields
 	 */
-	public $lastUnclaimedFields;
+	public ?array $lastUnclaimedFields;
 
 	/**
 	 * The URL to the API that lists unclaimed tower fields
 	 * @var string SNATCH_API
 	 */
-	const SNATCH_API = 'http://echtedomain.club/lc.php?faction=';
+	public const SNATCH_API = 'http://echtedomain.club/lc.php?faction=';
 
 	/**
 	 * The !snatch command retrieves a list of currently unclaimed tower fields
 	 *
-	 * @param string                     $message The received message
-	 * @param string                     $channel Where was the message received ("tell", "priv" or "guild")
-	 * @param string                     $sender  Name of the person sending the command
-	 * @param \Budabot\Core\CommandReply $sendto  Object to send the reply with
-	 * @param string[]                   $args    The arguments to the command. Empty as we don't accept any
-	 * @return void
-	 *
 	 * @HandlesCommand("snatch")
 	 * @Matches("/^snatch$/i")
 	 */
-	public function snatchCommand($message, $channel, $sender, $sendto, $args) {
+	public function snatchCommand(string $message, string $channel, string $sender, CommandReply $sendto, array $args): void {
 		$this->http
 				->get(static::SNATCH_API)
 				->withTimeout(5)
-				->withCallback(function($response) use ($sendto) {
-					$this->showAllUnclaimedSites($response, $sendto);
-				});
+				->withCallback([$this, "showAllUnclaimedSites"], $sendto);
 	}
 
 	/**
 	 * Send a list of all currently unclaimed tower sites to $sendto
-	 *
-	 * @param \StdClass                  $response The received response
-	 * @param \Budabot\Core\CommandReply $sendto  Object to send the reply with
-	 * @return void
 	 */
-	public function showAllUnclaimedSites($response, $sendto) {
+	public function showAllUnclaimedSites(HttpResponse $response, CommandReply $sendto): void {
 		if (isset($response->error)) {
 			$msg = "There was an error getting the list of unclaimed tower sites: ".
 				$response->error.
@@ -128,8 +104,8 @@ class SnatchController {
 		$extractSiteNum = function($site) {
 			return (int)substr($site, 1);
 		};
-		$blobs = array();
-		$this->lastUnclaimedFields = array();
+		$blobs = [];
+		$this->lastUnclaimedFields = [];
 		foreach ($sites as $playfieldName => $sites) {
 			$playfield = $this->playfieldController->getPlayfieldByName($playfieldName);
 			if ($playfield === null) {
@@ -153,11 +129,8 @@ class SnatchController {
 
 	/**
 	 * Render information about a single tower site
-	 *
-	 * @param \Budabot\Core\DBRow $row A row of tower_site
-	 * @return string The rendered string
 	 */
-	protected function formatSiteInfo($row) {
+	protected function formatSiteInfo(DBRow $row): string {
 		$waypointLink = $this->text->makeChatcmd($row->x_coord . "x" . $row->y_coord, "/waypoint {$row->x_coord} {$row->y_coord} {$row->playfield_id}");
 		$attacksLink = $this->text->makeChatcmd("Recent attacks", "/tell <myname> attacks {$row->short_name} {$row->site_number}");
 		$victoryLink = $this->text->makeChatcmd("Recent victories", "/tell <myname> victory {$row->short_name} {$row->site_number}");
@@ -188,9 +161,9 @@ class SnatchController {
 	 * Get a list of all tower sites in a playfield ID
 	 *
 	 * @param int $playfieldId The Playfield ID
-	 * @return \Budabot\Core\DBRow[]
+	 * @return \Nadybot\Core\DBRow[]
 	 */
-	protected function getTowerSitesInPlayfield($playfieldId) {
+	protected function getTowerSitesInPlayfield(int $playfieldId): array {
 		$sql = "SELECT *, t1.playfield_id, t1.site_number ".
 			"FROM tower_site t1 ".
 			"JOIN playfields p ON (t1.playfield_id = p.id) ".
@@ -201,11 +174,11 @@ class SnatchController {
 	/**
 	 * Filter the database values to only contain tower sites we're looking for
 	 *
-	 * @param \Budabot\Core\DBRow[] $rows All sites for a playfield
+	 * @param \Nadybot\Core\DBRow[] $rows All sites for a playfield
 	 * @param int[] $siteList List of all site numbers to show
-	 * @return \Budabot\Core\DBRow[] The filtered result
+	 * @return \Nadybot\Core\DBRow[] The filtered result
 	 */
-	protected function getSitesInSiteList($rows, $siteList) {
+	protected function getSitesInSiteList(array $rows, array $siteList): array {
 		return array_values(
 			array_filter(
 				$rows,
@@ -218,11 +191,8 @@ class SnatchController {
 
 	/**
 	 * Send a list of all new unclaimed tower sites to the guild chat
-	 *
-	 * @param \StdClass $response The received response
-	 * @return void
 	 */
-	public function announceNewUnclaimedSites($response) {
+	public function announceNewUnclaimedSites(HttpResponse $response): void {
 		if (isset($response->error) || !isset($response->body)) {
 			return;
 		}
@@ -231,15 +201,15 @@ class SnatchController {
 			return;
 		}
 		if (empty($sites)) {
-			$this->lastUnclaimedFields = array();
+			$this->lastUnclaimedFields = [];
 			return;
 		}
 
 		$extractSiteNum = function($site) {
 			return (int)substr($site, 1);
 		};
-		$newUnclaimedFields = array();
-		$blobs = array();
+		$newUnclaimedFields = [];
+		$blobs = [];
 		foreach ($sites as $playfieldName => $fields) {
 			$playfield = $this->playfieldController->getPlayfieldByName($playfieldName);
 			if ($playfield === null) {
@@ -258,7 +228,7 @@ class SnatchController {
 		}
 		// If this cronjob runs for the first time, don't announce anything
 		if ($this->lastUnclaimedFields === null) {
-			$blobs = array();
+			$blobs = [];
 		}
 		$this->lastUnclaimedFields = $newUnclaimedFields;
 		if (count($blobs) > 0) {
@@ -274,7 +244,7 @@ class SnatchController {
 	 * @param boolean $new true if these are only new, formerly unannounced sites, else false
 	 * @return string The complete message to send
 	 */
-	public function getAnnounceMessage($blobs, $new=false) {
+	public function getAnnounceMessage(array $blobs, bool $new=false): string {
 		$numSites = count($blobs);
 		$site = ($numSites === 1) ? "site" : "sites";
 		$newText = $new ? "new " : "";
