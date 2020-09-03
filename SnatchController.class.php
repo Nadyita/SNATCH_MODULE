@@ -220,7 +220,7 @@ class SnatchController {
 			$data = $this->getSitesInSiteList($data, $siteNumbers);
 			foreach ($data as $row) {
 				$newUnclaimedFields[] = [$row->short_name, $row->site_number];
-				if (in_array([$row->short_name, $row->site_number], $this->lastUnclaimedFields)) {
+				if (in_array([$row->short_name, $row->site_number], $this->lastUnclaimedFields??[])) {
 					continue;
 				}
 				$blobs []= "<pagebreak>" . $this->formatSiteInfo($row);
