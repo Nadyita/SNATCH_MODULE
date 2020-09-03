@@ -55,7 +55,7 @@ class SnatchController {
 	/**
 	 * An array of all unclaimed fields since the last check in format [ ["WW", 1], ["AE", 3] ]
 	 */
-	public ?array $lastUnclaimedFields;
+	public ?array $lastUnclaimedFields = null;
 
 	/**
 	 * The URL to the API that lists unclaimed tower fields
